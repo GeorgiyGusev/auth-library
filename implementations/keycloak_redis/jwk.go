@@ -2,8 +2,8 @@ package keycloak_redis
 
 import (
 	"context"
+	"github.com/GeorgiyGusev/auth-library/provider"
 	"github.com/lestrrat-go/jwx/jwk"
-	"github.com/neiasit/auth-library/provider"
 )
 
 var _ provider.AuthProvider = (*Provider)(nil)

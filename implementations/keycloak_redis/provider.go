@@ -2,11 +2,11 @@ package keycloak_redis
 
 import (
 	"context"
+	"github.com/GeorgiyGusev/auth-library/models"
+	"github.com/GeorgiyGusev/auth-library/provider"
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt"
 	"github.com/mitchellh/mapstructure"
-	"github.com/neiasit/auth-library/models"
-	"github.com/neiasit/auth-library/provider"
 	"github.com/redis/go-redis/v9"
 	"log/slog"
 	"sync"

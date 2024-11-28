@@ -1,8 +1,8 @@
 package auth_library
 
 import (
-	"github.com/neiasit/auth-library/implementations/keycloak_redis"
-	"github.com/neiasit/auth-library/provider"
+	"github.com/GeorgiyGusev/auth-library/implementations/keycloak_redis"
+	"github.com/GeorgiyGusev/auth-library/provider"
 	"go.uber.org/fx"
 )
 

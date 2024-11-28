@@ -4,9 +4,9 @@ import (
 	"context"
 	"crypto/rsa"
 	"fmt"
+	"github.com/GeorgiyGusev/auth-library/models"
+	"github.com/GeorgiyGusev/auth-library/provider"
 	"github.com/golang-jwt/jwt"
-	"github.com/neiasit/auth-library/models"
-	"github.com/neiasit/auth-library/provider"
 	"log/slog"
 )
 
