@@ -5,7 +5,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt"
 	"github.com/mitchellh/mapstructure"
-	models2 "github.com/neiasit/auth-library/models"
+	"github.com/neiasit/auth-library/models"
 	"github.com/neiasit/auth-library/provider"
 	"github.com/redis/go-redis/v9"
 	"log/slog"
@@ -45,36 +45,41 @@ func NewProvider(
 	}
 }
 
+func (p *Provider) IsEndpointSecure(endpoint string) bool {
+	_, ok := p.endpointSecurity[endpoint]
+	return ok
+}
+
 func (p *Provider) Authorize(
 	ctx context.Context,
 	path string,
 	tokenString string,
 ) (
-	models2.UserDetails,
+	models.UserDetails,
 	error,
 ) {
 	token, err := p.VerifyToken(ctx, tokenString)
 	if err != nil {
 		p.logger.Error("failed to verify token", slog.String("err", err.Error()))
-		return models2.UserDetails{}, models2.InvalidTokenError
+		return models.UserDetails{}, models.InvalidTokenError
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 
 	if !(ok && token.Valid) {
 		p.logger.Error("failed to get claims")
-		return models2.UserDetails{}, models2.InvalidTokenError
+		return models.UserDetails{}, models.InvalidTokenError
 	}
 
 	if claims["sub"] == "" || claims["sub"] == nil {
 		p.logger.Error("failed to validate sub claim")
-		return models2.UserDetails{}, models2.InvalidTokenError
+		return models.UserDetails{}, models.InvalidTokenError
 	}
 
 	err = p.validate.Var(claims["sub"], "uuid4")
 	if err != nil {
 		p.logger.Error("failed to validate sub claim", slog.String("err", err.Error()))
-		return models2.UserDetails{}, err
+		return models.UserDetails{}, err
 	}
 
 	var userRoles []string
@@ -92,7 +97,7 @@ func (p *Provider) Authorize(
 		userEmail = ""
 	}
 
-	userDetails := models2.UserDetails{
+	userDetails := models.UserDetails{
 		Roles:      userRoles,
 		UserId:     claims["sub"].(string),
 		Email:      userEmail,
@@ -108,7 +113,7 @@ func (p *Provider) Authorize(
 	if !p.IsUserHaveRoles(neededRoles, userRoles) {
 		p.logger.Error("user data", slog.Any("userDetails", userDetails))
 		p.logger.Error("user doesn't have needed roles", slog.Any("neededRoles", neededRoles), slog.Any("userRoles", userRoles))
-		return userDetails, models2.AccessDeniedError
+		return userDetails, models.AccessDeniedError
 	}
 
 	return userDetails, nil
