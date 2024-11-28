@@ -22,5 +22,6 @@ type AuthProvider interface {
 }
 
 const (
-	JwkKeySet = "jwk-set"
+	JwkKeySet      = "jwk-set"
+	UserDetailsKey = "user-details"
 )
