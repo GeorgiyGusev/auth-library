@@ -108,7 +108,7 @@ func (p *Provider) Authorize(
 
 	neededRoles := p.endpointSecurity[path]
 	if len(neededRoles) == 0 {
-		neededRoles = []string{""}
+		neededRoles = []string{}
 	}
 	if !p.IsUserHaveRoles(neededRoles, userRoles) {
 		p.logger.Error("user data", slog.Any("userDetails", userDetails))
