@@ -3,28 +3,27 @@ package keycloak_redis
 import (
 	"context"
 	"github.com/GeorgiyGusev/auth-library/models"
-	"github.com/GeorgiyGusev/auth-library/provider"
 	"github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt"
 	"github.com/mitchellh/mapstructure"
 	"github.com/redis/go-redis/v9"
 	"log/slog"
+	pathLib "path"
+	"strings"
 	"sync"
-	"time"
 )
 
-var _ provider.AuthProvider = (*Provider)(nil)
-
-type JwkOptions struct {
-	RefreshJwkTimeout time.Duration
-	JwkPublicUri      string
+type EndpointRule struct {
+	PathPattern string
+	Methods     []string
+	Roles       []string
 }
 
 type Provider struct {
 	config           *Config
 	redis            *redis.Client
 	validate         *validator.Validate
-	endpointSecurity map[string][]string
+	endpointSecurity []EndpointRule
 	m                *sync.RWMutex
 	logger           *slog.Logger
 }
@@ -40,19 +39,43 @@ func NewProvider(
 		redis:            redis,
 		validate:         validate,
 		m:                &sync.RWMutex{},
-		endpointSecurity: make(map[string][]string),
+		endpointSecurity: []EndpointRule{},
 		logger:           logger,
 	}
 }
 
-func (p *Provider) IsEndpointSecure(endpoint string) bool {
-	_, ok := p.endpointSecurity[endpoint]
-	return ok
+func (p *Provider) IsEndpointSecure(endpoint string, method string) bool {
+	p.m.RLock()
+	defer p.m.RUnlock()
+
+	for _, rule := range p.endpointSecurity {
+		matched, _ := pathLib.Match(rule.PathPattern, endpoint)
+		if matched && (len(rule.Methods) == 0 || contains(rule.Methods, method)) {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *Provider) AddEndpointSecurity(
+	pathPattern string,
+	methods []string,
+	roles []string,
+) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
+	p.endpointSecurity = append(p.endpointSecurity, EndpointRule{
+		PathPattern: pathPattern,
+		Methods:     methods,
+		Roles:       roles,
+	})
 }
 
 func (p *Provider) Authorize(
 	ctx context.Context,
 	path string,
+	method string,
 	tokenString string,
 ) (
 	models.UserDetails,
@@ -65,7 +88,6 @@ func (p *Provider) Authorize(
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
-
 	if !(ok && token.Valid) {
 		p.logger.Error("failed to get claims")
 		return models.UserDetails{}, models.InvalidTokenError
@@ -106,24 +128,28 @@ func (p *Provider) Authorize(
 		FamilyName: claims["family_name"].(string),
 	}
 
-	neededRoles := p.endpointSecurity[path]
-	if len(neededRoles) == 0 {
-		neededRoles = []string{}
-	}
-	if !p.IsUserHaveRoles(neededRoles, userRoles) {
-		p.logger.Error("user data", slog.Any("userDetails", userDetails))
-		p.logger.Error("user doesn't have needed roles", slog.Any("neededRoles", neededRoles), slog.Any("userRoles", userRoles))
-		return userDetails, models.AccessDeniedError
+	p.m.RLock()
+	defer p.m.RUnlock()
+	for _, rule := range p.endpointSecurity {
+		matched, _ := pathLib.Match(rule.PathPattern, path)
+		if matched && (len(rule.Methods) == 0 || contains(rule.Methods, method)) {
+			if !p.IsUserHaveRoles(rule.Roles, userRoles) {
+				p.logger.Error("user doesn't have needed roles", slog.Any("neededRoles", rule.Roles), slog.Any("userRoles", userRoles))
+				return userDetails, models.AccessDeniedError
+			}
+			return userDetails, nil
+		}
 	}
 
-	return userDetails, nil
+	p.logger.Error("no security rule matched", slog.String("path", path), slog.String("method", method))
+	return userDetails, models.AccessDeniedError
 }
 
-func (p *Provider) AddEndpointSecurity(
-	endpoint string,
-	roles ...string,
-) {
-	p.m.Lock()
-	defer p.m.Unlock()
-	p.endpointSecurity[endpoint] = roles
+func contains(slice []string, item string) bool {
+	for _, v := range slice {
+		if strings.EqualFold(v, item) {
+			return true
+		}
+	}
+	return false
 }
